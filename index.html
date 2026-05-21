@@ -1,0 +1,2014 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="w-full overflow-x-hidden">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FlexChess: 西洋棋兵陣學 Flexbox 學習遊戲</title>
+    <!-- 引入 Tailwind CSS 提供現代且回應式的 UI 設計 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Vue 3 (Composition API) 進行流暢的狀態管理 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入 Google Fonts - Inter 與 Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700&family=Noto+Sans+TC:wght=300;400;500;700&display=swap" rel="stylesheet">
+    <!-- 引入 FontAwesome 圖標 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 引入 Three.js 進行 3D 開場與太空背景渲染 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #060913; /* 太空極暗藍黑 */
+            color: #f8fafc;
+            overflow-x: hidden;
+            width: 100%;
+        }
+
+        /* 解決下拉選單在部分瀏覽器或作業系統上因預設反白而看不到文字的問題 */
+        select, option {
+            color-scheme: dark;
+            background-color: #0f172a !important; /* 強制深色藍灰底 */
+            color: #f8fafc !important; /* 強制亮白字 */
+        }
+
+        /* 西洋棋盤格紋樣式 */
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            grid-template-rows: repeat(8, minmax(0, 1fr));
+        }
+
+        .square-light {
+            background-color: #f0d9b5; /* 經典淺色棋格 */
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+        }
+
+        .square-dark {
+            background-color: #b58863; /* 經典深色木質棋格 */
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.15);
+        }
+
+        /* 核心學習樣式：Flexbox 運作容器（藍色虛線邊框與發光特效） */
+        .flex-playground {
+            display: flex; /* 必須啟用 display: flex */
+            position: absolute;
+            z-index: 10;
+            pointer-events: none; /* 避免干擾底下的事件 */
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            
+            /* 藍色虛線範圍標示 */
+            border: 2px dashed #3b82f6; 
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.35), inset 0 0 10px rgba(59, 130, 246, 0.15);
+            border-radius: 8px;
+        }
+
+        /* 讓子元素（棋子）可以響應 pointer-events */
+        .flex-playground > * {
+            pointer-events: auto;
+        }
+
+        /* 自訂滾動條 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        /* 閃爍動畫：提示目標位置（高鮮豔度霓虹青色） */
+        @keyframes pulse-cyan {
+            0%, 100% { 
+                opacity: 0.65; 
+                transform: scale(0.96); 
+                box-shadow: 0 0 12px rgba(34, 211, 238, 0.5); 
+            }
+            50% { 
+                opacity: 1; 
+                transform: scale(1.04); 
+                box-shadow: 0 0 22px rgba(34, 211, 238, 0.9); 
+                background-color: rgba(6, 182, 212, 0.3);
+            }
+        }
+        .target-pulse {
+            animation: pulse-cyan 2s infinite ease-in-out;
+        }
+
+        /* 棋盤完美通關高光效果 */
+        .board-glow-success {
+            box-shadow: 0 0 35px rgba(245, 158, 11, 0.4);
+            border-color: rgba(245, 158, 11, 0.6) !important;
+        }
+
+        /* 終極通關旋轉背景特效 */
+        @keyframes rotate-slow {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .animate-rotate-slow {
+            animation: rotate-slow 20s infinite linear;
+        }
+
+        /* Three.js 宇宙背景容器 */
+        #three-canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background-color: #05070f;
+            transition: opacity 1s ease;
+        }
+
+        /* 毛玻璃極美卡片效果 - 凸顯背後 3D 空間 */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between relative w-full overflow-x-hidden">
+
+    <!-- Three.js 立體宇宙星辰背景 -->
+    <div id="three-canvas-container"></div>
+
+    <!-- 用於過關灑花特效的 Canvas -->
+    <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50 w-full h-full"></canvas>
+
+    <!-- Vue 應用程式掛載點 -->
+    <div id="app" class="flex-grow flex flex-col justify-between relative z-10 w-full overflow-x-hidden" v-cloak>
+        
+        <!-- 【全新 3D 宇宙登陸艙開場遮罩】 -->
+        <div v-if="introActive" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm transition-all duration-1000">
+            <div class="max-w-2xl w-full glass-card border border-amber-500/20 rounded-3xl p-6 md:p-8 text-center shadow-2xl relative overflow-hidden">
+                <!-- 裝飾邊框光芒 -->
+                <div class="absolute -top-10 -left-10 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl"></div>
+                <div class="absolute -bottom-10 -right-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-2xl"></div>
+                
+                <div class="relative z-10">
+                    <div class="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-tr from-amber-500 to-orange-400 text-slate-950 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg shadow-amber-500/20">
+                        <i class="fa-solid fa-chess-knight text-3xl md:text-4xl animate-pulse"></i>
+                    </div>
+                    
+                    <span class="text-[9px] md:text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full font-bold tracking-widest uppercase mb-3 inline-block">
+                        FLEXBOX CHESS FORMATION v2.3
+                    </span>
+                    
+                    <h1 class="text-2xl md:text-4.5xl font-black tracking-tight bg-gradient-to-r from-amber-400 via-orange-300 to-amber-200 bg-clip-text text-transparent mb-3 md:mb-4">
+                        {{ t('intro_title') }}
+                    </h1>
+                    
+                    <p class="text-xs md:text-sm text-slate-300 leading-relaxed max-w-lg mx-auto mb-6 md:mb-8">
+                        {{ t('intro_tagline') }}
+                    </p>
+
+                    <!-- 三維操作指示 -->
+                    <div class="grid grid-cols-3 gap-2 md:gap-4 max-w-md mx-auto mb-6 md:mb-8">
+                        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-2 md:p-3">
+                            <i class="fa-solid fa-cube text-cyan-400 text-base md:text-lg mb-1"></i>
+                            <h5 class="text-[10px] md:text-[11px] font-bold text-white">Three.js 引擎</h5>
+                            <p class="text-[9px] md:text-[10px] text-slate-400 mt-0.5">三維幾何立體光影</p>
+                        </div>
+                        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-2 md:p-3">
+                            <i class="fa-solid fa-arrows-spin text-amber-400 text-base md:text-lg mb-1 animate-spin-slow"></i>
+                            <h5 class="text-[10px] md:text-[11px] font-bold text-white">空間視角感應</h5>
+                            <p class="text-[9px] md:text-[10px] text-slate-400 mt-0.5">傾斜滑鼠旋轉相機</p>
+                        </div>
+                        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-2 md:p-3">
+                            <i class="fa-solid fa-wind text-emerald-400 text-base md:text-lg mb-1"></i>
+                            <h5 class="text-[10px] md:text-[11px] font-bold text-white">Flexbox 部署</h5>
+                            <p class="text-[9px] md:text-[10px] text-slate-400 mt-0.5">8 款精緻戰術佈陣</p>
+                        </div>
+                    </div>
+
+                    <button @click="enterGame" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black px-8 py-3.5 md:px-10 md:py-4 rounded-xl text-xs md:text-sm tracking-widest uppercase transition-all shadow-xl shadow-amber-500/20 flex items-center gap-2 mx-auto transform hover:scale-105">
+                        {{ t('intro_btn') }} <i class="fa-solid fa-circle-play text-base md:text-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 頂部導航欄 (Header)：在小螢幕自動重排防溢出 -->
+        <header class="bg-slate-900/80 border-b border-slate-800/50 backdrop-blur-md px-4 py-3 md:px-6 md:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sticky top-0 z-40 w-full">
+            <div class="flex items-center space-x-3 self-start sm:self-auto">
+                <div class="bg-amber-500 text-slate-950 p-2 md:p-2.5 rounded-xl font-bold shadow-lg shadow-amber-500/20">
+                    <i class="fa-solid fa-chess-knight text-xl md:text-2xl animate-pulse"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-1.5 md:gap-2">
+                        <h1 class="text-lg md:text-xl font-extrabold tracking-tight bg-gradient-to-r from-amber-400 via-orange-300 to-amber-200 bg-clip-text text-transparent">
+                            FlexChess
+                        </h1>
+                        <span class="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-widest">v2.3</span>
+                    </div>
+                    <p class="text-[10px] md:text-xs text-slate-400 font-medium">{{ t('subtitle') }}</p>
+                </div>
+            </div>
+
+            <!-- 頂部橫幅廣告位 (Google Ad Placeholder 1) -->
+            <div class="hidden lg:flex items-center justify-center bg-slate-950 border border-slate-800 rounded px-4 py-1 text-xs text-slate-500 w-[420px] h-[50px] relative overflow-hidden">
+                <span class="absolute top-0 left-0 bg-slate-800 text-[9px] px-1.5 py-0.5 text-slate-400 rounded-br font-mono font-bold">AD #1</span>
+                <span class="text-slate-400 font-medium mr-2 text-[11px]"><i class="fa-solid fa-rectangle-ad mr-1 text-amber-500"></i>{{ t('adText') }}</span>
+                <span class="text-[10px] text-amber-500/80 border border-amber-500/30 rounded px-1">468x60 Banner</span>
+            </div>
+
+            <!-- 右側控制面板 (選關 + 導覽 + 3D切換 + 靜音 + 語言)：在手機上自適應網格排版 -->
+            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-start sm:justify-end">
+                <!-- 新手教學按鈕 -->
+                <button @click="startTour" class="bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 px-2.5 py-1.5 rounded-lg border border-amber-500/30 text-[11px] md:text-xs font-semibold transition-all shadow-md flex items-center gap-1" :title="t('tour_btn')">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                    <span>{{ t('tour_btn') }}</span>
+                </button>
+
+                <!-- 3D 效果開關 -->
+                <button @click="toggle3D" class="px-2.5 py-1.5 rounded-lg border text-[11px] md:text-xs font-semibold transition-all shadow-md flex items-center gap-1"
+                        :class="is3DActive ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-400'">
+                    <i class="fa-solid fa-cube"></i>
+                    <span>3D</span>
+                </button>
+
+                <!-- 關卡跳轉下拉選單 -->
+                <div class="relative flex-grow sm:flex-grow-0 min-w-[120px]">
+                    <select v-model="currentLevelIndex" class="w-full bg-slate-850 hover:bg-slate-800 text-white border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] md:text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/40 cursor-pointer appearance-none pr-7">
+                        <option v-for="(lvl, idx) in levels" :key="idx" :value="idx" class="bg-slate-900 text-slate-100">
+                            {{ idx + 1 }}. {{ t(lvl.titleKey).split('：')[1] || t(lvl.titleKey) }} 
+                            {{ isLevelCompleted(idx) ? ' (✓)' : '' }}
+                        </option>
+                    </select>
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-slate-400 text-[9px]">
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                </div>
+
+                <!-- 靜音控制 -->
+                <button @click="toggleMute" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-1.5 rounded-lg border border-slate-700 transition" :title="isMuted ? '開啟音效' : '靜音'">
+                    <i :class="isMuted ? 'fa-solid fa-volume-xmark text-rose-400 text-xs' : 'fa-solid fa-volume-high text-emerald-400 text-xs'"></i>
+                </button>
+
+                <!-- 語言切換按鈕 -->
+                <button @click="toggleLang" class="flex items-center space-x-1 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-700 text-[11px] md:text-xs font-semibold transition-all shadow-md">
+                    <i class="fa-solid fa-language text-amber-400 text-xs"></i>
+                    <span>{{ currentLang === 'zh' ? 'EN' : '繁中' }}</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 遊戲核心區：左右分欄佈局 (行動端優化：flex flex-col，使內部卡片可運用 order 屬性重新排定最優玩順序) -->
+        <main class="flex-grow max-w-[1400px] w-full mx-auto p-3 sm:p-4 md:p-6 flex flex-col gap-4 lg:grid lg:grid-cols-12 lg:gap-6 items-start relative z-10 box-border overflow-x-hidden">
+            
+            <!-- 【左側欄】：關卡導覽、西洋棋基本走法教室、CSS 編輯器 (行動端改用 contents，以便將棋盤與編輯器直接關聯) -->
+            <div class="contents lg:flex lg:flex-col lg:space-y-6 lg:col-span-5 w-full">
+                
+                <!-- 1. 關卡選擇與進度 (Tour 目標 #1) — 手機端第 1 順位 -->
+                <div id="level-info-card" class="glass-card border border-slate-800/80 rounded-2xl p-4 md:p-5 shadow-xl relative overflow-hidden transition-all order-1 lg:order-none">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-slate-950">
+                        <div class="bg-gradient-to-r from-amber-500 via-orange-400 to-yellow-300 h-full transition-all duration-500"
+                             :style="{ width: ((currentLevelIndex + 1) / levels.length * 100) + '%' }"></div>
+                    </div>
+
+                    <div class="flex items-center justify-between mb-3 mt-1">
+                        <div class="flex items-center space-x-2">
+                            <!-- 難度階級標籤 -->
+                            <span :class="difficultyBadgeClass" class="text-[9px] md:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 md:px-2.5 md:py-1 rounded-full">
+                                {{ t(currentLevel.difficultyKey) }}
+                            </span>
+                            <span class="text-[11px] md:text-xs font-bold text-slate-400">
+                                {{ t('level') }} {{ currentLevelIndex + 1 }} / {{ levels.length }}
+                            </span>
+                        </div>
+                        <div class="flex space-x-1.5">
+                            <button @click="prevLevel" :disabled="currentLevelIndex === 0" class="p-1.5 md:p-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-20 disabled:hover:bg-slate-800 rounded-lg text-xs transition-all shadow-sm text-slate-300">
+                                <i class="fa-solid fa-arrow-left"></i>
+                            </button>
+                            <button @click="nextLevel" :disabled="currentLevelIndex === levels.length - 1" class="p-1.5 md:p-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-20 disabled:hover:bg-slate-800 rounded-lg text-xs transition-all shadow-sm text-slate-300">
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <h2 class="text-base md:text-lg font-bold text-white mb-2 flex items-center gap-1.5">
+                        <span v-if="isLevelCompleted(currentLevelIndex)" class="text-emerald-400" title="已通關"><i class="fa-solid fa-circle-check"></i></span>
+                        {{ t(currentLevel.titleKey) }}
+                    </h2>
+                    <p class="text-xs text-slate-300 leading-relaxed">{{ t(currentLevel.descKey) }}</p>
+                </div>
+
+                <!-- 2. 西洋棋教室 (Chess Academy - Tour 目標 #2) — 手機端第 2 順位 (置於棋盤正上方) -->
+                <div id="chess-academy-card" class="bg-gradient-to-b from-slate-900/60 to-slate-950/60 border border-amber-500/10 rounded-2xl p-4 md:p-5 shadow-xl relative overflow-hidden transition-all order-2 lg:order-none">
+                    <div class="absolute -right-6 -bottom-6 text-slate-800/10 text-7xl md:text-8xl pointer-events-none select-none">
+                        <i :class="getPieceIcon(currentLevel.pieces[0].type)"></i>
+                    </div>
+                    
+                    <h3 class="text-[10px] md:text-xs font-bold text-amber-400 uppercase tracking-wider mb-2.5 md:mb-3 flex items-center gap-1.5">
+                        <i class="fa-solid fa-graduation-cap text-xs md:text-sm"></i> {{ t('academyTitle') }}
+                    </h3>
+                    
+                    <div class="bg-slate-950/60 border border-slate-850 rounded-xl p-3 md:p-4">
+                        <div class="flex items-center space-x-2.5 mb-2">
+                            <span class="text-2xl md:text-3xl text-amber-400 filter drop-shadow">
+                                <i :class="getPieceIcon(currentLevel.pieces[0].type)"></i>
+                            </span>
+                            <span class="text-xs md:text-sm font-bold text-white">{{ t(currentLevel.pieceNameKey) }}</span>
+                        </div>
+                        <p class="text-[11px] md:text-xs text-slate-400 leading-relaxed mb-3">
+                            {{ t(currentLevel.pieceRuleKey) }}
+                        </p>
+                        <div class="flex items-start gap-2 text-[10px] md:text-[11px] text-slate-300 bg-slate-900/80 p-2 md:p-2.5 rounded-lg border border-slate-800/40">
+                            <i class="fa-solid fa-crosshairs text-amber-500 animate-pulse mt-0.5"></i>
+                            <span><strong>{{ t('howToWin') }}:</strong> {{ t(currentLevel.missionKey) }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. CSS 彈性排兵編輯器 (Tour 目標 #3) — 手機端第 4 順位 (置於棋盤正下方) -->
+                <div id="css-editor-card" class="glass-card border border-slate-850 rounded-2xl p-4 md:p-5 shadow-xl flex flex-col relative transition-all order-4 lg:order-none">
+                    <div class="absolute top-4 right-4 flex items-center space-x-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80 shadow-md"></span>
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80 shadow-md"></span>
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80 shadow-md"></span>
+                    </div>
+
+                    <h3 class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-3.5 flex items-center gap-1.5">
+                        <i class="fa-solid fa-code text-amber-400"></i> CSS Editor
+                    </h3>
+
+                    <!-- 程式碼編輯區域 -->
+                    <div class="bg-slate-950/80 rounded-xl p-3 md:p-4 font-mono text-[11px] md:text-xs border border-slate-850 shadow-inner">
+                        <div class="text-slate-500 text-[10px] md:text-[11px] mb-2">/* {{ t('editComment') }} */</div>
+                        <div class="text-blue-400">#board-formation <span class="text-slate-400">{</span></div>
+                        
+                        <!-- 唯讀固定的 display: flex -->
+                        <div class="pl-4 md:pl-6 flex flex-wrap items-start gap-x-2 text-slate-400 py-1.5 border-l-2 border-slate-800">
+                            <div>
+                                <span class="text-purple-400 font-bold">display</span>:
+                                <span class="text-amber-300 font-bold">flex</span>;
+                            </div>
+                            <span class="text-[9px] md:text-[10px] text-slate-600 font-sans mt-0.5">/* {{ t('displayComment') }} */</span>
+                        </div>
+
+                        <!-- 玩家自由輸入區 -->
+                        <div class="pl-4 md:pl-6 flex flex-col mt-1 py-1 border-l-2 border-amber-500/30">
+                            <textarea 
+                                v-model="userCssInput"
+                                @input="applyCss"
+                                rows="3"
+                                class="w-full bg-slate-900/40 border border-slate-850 focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-2 text-emerald-405 placeholder-slate-700 outline-none transition font-mono resize-none leading-relaxed text-[11px] md:text-xs"
+                                :placeholder="t('editorPlaceholder')">
+                            </textarea>
+                        </div>
+
+                        <div class="text-slate-400">}</div>
+                    </div>
+
+                    <!-- 快速填入輔助工具 (Quick Chips - Tour 目標 #4) -->
+                    <div id="quick-chips-card" class="mt-3 p-1 rounded-xl transition-all">
+                        <p class="text-[9px] md:text-[10px] text-slate-500 mb-1.5 font-bold tracking-wider uppercase"><i class="fa-solid fa-keyboard mr-1"></i> {{ t('quickInsert') }}</p>
+                        <div class="flex flex-wrap gap-1 md:gap-1.5">
+                            <button v-for="chip in getSuggestedChips()" 
+                                    :key="chip"
+                                    @click="insertChip(chip)"
+                                    class="text-[9px] md:text-[10px] bg-slate-800 hover:bg-slate-750 text-slate-300 px-2 py-0.5 md:px-2.5 md:py-1 rounded-md border border-slate-700 font-mono transition-all">
+                                + {{ chip }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 按鈕控制列 -->
+                    <div class="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap gap-2 justify-between items-center">
+                        <button @click="resetLevel" class="text-[11px] md:text-xs text-slate-400 hover:text-white font-medium flex items-center gap-1 transition">
+                            <i class="fa-solid fa-arrow-rotate-left"></i> {{ t('resetBtn') }}
+                        </button>
+                        
+                        <div class="flex gap-1.5">
+                            <!-- 提示按鈕 -->
+                            <button @click="showHint = !showHint" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg text-[11px] md:text-xs font-semibold transition flex items-center gap-1 shadow-sm border border-slate-700">
+                                <i class="fa-regular fa-lightbulb text-amber-400 text-xs md:text-sm"></i> {{ t('hintBtn') }}
+                            </button>
+                            <!-- 檢查答案按鈕 -->
+                            <button @click="verifyAnswer" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold px-3.5 py-1.5 rounded-lg text-[11px] md:text-xs tracking-wider uppercase transition shadow-lg shadow-amber-500/20 flex items-center gap-1">
+                                {{ t('checkBtn') }} <i class="fa-solid fa-circle-check"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 戰略提示框 -->
+                    <div v-if="showHint" class="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] md:text-xs text-amber-200 leading-relaxed transition-all duration-300">
+                        <i class="fa-solid fa-wand-magic-sparkles mr-1 text-amber-400 animate-bounce"></i>
+                        strong>{{ t('hintTitle') }}:</strong> {{ t(currentLevel.hintKey) }}
+                    </div>
+                </div>
+
+                <!-- 4. Flexbox 兵書 — 手機端第 5 順位 -->
+                <div class="glass-card border border-slate-850 rounded-2xl p-4 md:p-5 shadow-xl order-5 lg:order-none">
+                    <h3 class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                        <i class="fa-solid fa-book text-amber-400 text-xs md:text-sm"></i> {{ t('cheatSheetTitle') }}
+                    </h3>
+                    <div class="space-y-3 max-h-[140px] md:max-h-[180px] overflow-y-auto pr-1">
+                        <div class="border-b border-slate-800/60 pb-2">
+                            <div class="flex justify-between items-center text-[11px] md:text-xs">
+                                <span class="font-mono text-amber-300 font-bold">flex-direction</span>
+                                <span class="text-slate-500 font-medium">{{ t('propDir') }}</span>
+                            </div>
+                            <p class="text-[10px] md:text-[11px] text-slate-400 mt-1 leading-snug font-mono">
+                                row ({{ t('default') }}) | row-reverse | column | column-reverse
+                            </p>
+                        </div>
+                        <div class="border-b border-slate-800/60 pb-2">
+                            <div class="flex justify-between items-center text-[11px] md:text-xs">
+                                <span class="font-mono text-amber-300 font-bold">justify-content</span>
+                                <span class="text-slate-500 font-medium">{{ t('propJust') }}</span>
+                            </div>
+                            <p class="text-[10px] md:text-[11px] text-slate-400 mt-1 leading-snug font-mono">
+                                flex-start | flex-end | center | space-between | space-around | space-evenly
+                            </p>
+                        </div>
+                        <div class="border-b border-slate-800/60 pb-2">
+                            <div class="flex justify-between items-center text-[11px] md:text-xs">
+                                <span class="font-mono text-amber-300 font-bold">align-items</span>
+                                <span class="text-slate-500 font-medium">{{ t('propAlign') }}</span>
+                            </div>
+                            <p class="text-[10px] md:text-[11px] text-slate-400 mt-1 leading-snug font-mono">
+                                stretch | flex-start | flex-end | center | baseline
+                            </p>
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center text-[11px] md:text-xs">
+                                <span class="font-mono text-amber-300 font-bold">flex-wrap</span>
+                                <span class="text-slate-500 font-medium">{{ t('propWrap') }}</span>
+                            </div>
+                            <p class="text-[10px] md:text-[11px] text-slate-400 mt-1 leading-snug font-mono">
+                                nowrap ({{ t('default') }}) | wrap | wrap-reverse
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 【右側欄】：西洋棋盤主戰場與中型廣告區 (行動端改用 contents，直接將棋盤排序到編輯器上方) -->
+            <div class="contents lg:flex lg:flex-col lg:justify-center lg:items-center lg:col-span-7 lg:sticky lg:top-24 w-full lg:overflow-hidden">
+                
+                <!-- 棋盤容器，包含字母與數字標記 — 手機端第 3 順位 (置於小教室下方、編輯器上方) -->
+                <div id="chessboard-container" class="relative w-full max-w-[480px] aspect-square bg-slate-950 p-4 sm:p-6 md:p-8 rounded-2xl shadow-2xl border-2 border-slate-850 transition-all box-border order-3 lg:order-none">
+                    
+                    <!-- 數字座標 (1-8 左側) -->
+                    <div class="absolute left-1.5 md:left-2.5 top-6 bottom-6 md:top-8 md:bottom-8 flex flex-col justify-between text-[9px] md:text-[11px] font-bold text-slate-500 pointer-events-none">
+                        <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
+                    </div>
+
+                    <!-- 數字座標 (1-8 右側) -->
+                    <div class="absolute right-1.5 md:right-2.5 top-6 bottom-6 md:top-8 md:bottom-8 flex flex-col justify-between text-[9px] md:text-[11px] font-bold text-slate-500 pointer-events-none">
+                        <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
+                    </div>
+
+                    <!-- 字母座標 (A-H 底部) -->
+                    <div class="absolute bottom-1 md:bottom-2 left-6 right-6 md:left-8 md:right-8 flex justify-between text-[9px] md:text-[11px] font-bold text-slate-500 pointer-events-none text-center">
+                        <span class="w-6 md:w-8">A</span><span class="w-6 md:w-8">B</span><span class="w-6 md:w-8">C</span><span class="w-6 md:w-8">D</span>
+                        <span class="w-6 md:w-8">E</span><span class="w-6 md:w-8">F</span><span class="w-6 md:w-8">G</span><span class="w-6 md:w-8">H</span>
+                    </div>
+
+                    <!-- 字母座標 (A-H 頂部) -->
+                    <div class="absolute top-1 md:top-2 left-6 right-6 md:left-8 md:right-8 flex justify-between text-[9px] md:text-[11px] font-bold text-slate-500 pointer-events-none text-center">
+                        <span class="w-6 md:w-8">A</span><span class="w-6 md:w-8">B</span><span class="w-6 md:w-8">C</span><span class="w-6 md:w-8">D</span>
+                        <span class="w-6 md:w-8">E</span><span class="w-6 md:w-8">F</span><span class="w-6 md:w-8">G</span><span class="w-6 md:w-8">H</span>
+                    </div>
+
+                    <!-- 實際棋盤主體 -->
+                    <div :class="{'board-glow-success': isLevelCompleted(currentLevelIndex)}" 
+                         class="relative w-full h-full aspect-square border-2 md:border-4 border-slate-900 rounded-lg overflow-hidden shadow-2xl transition-all duration-500">
+                        
+                        <!-- 8x8 格子背景 -->
+                        <div class="board-grid w-full h-full">
+                            <template v-for="row in 8">
+                                <template v-for="col in 8">
+                                    <div :class="(row + col) % 2 === 0 ? 'square-light' : 'square-dark'" 
+                                         class="w-full h-full relative transition-colors duration-300">
+                                    </div>
+                                </template>
+                            </template>
+                        </div>
+
+                        <!-- 
+                          「目標區域層 (Target Layer)」
+                        -->
+                        <div class="absolute inset-0 z-10 grid grid-cols-8 grid-rows-8 pointer-events-none">
+                            <template v-for="target in currentLevel.targets">
+                                <div :style="{ gridArea: `${9 - target.y} / ${target.x} / span 1 / span 1` }"
+                                     class="flex items-center justify-center bg-cyan-500/20 border-2 border-dashed border-cyan-400 rounded-lg md:rounded-xl target-pulse m-0.5 shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+                                    <!-- 顯示目標棋子陰影 -->
+                                    <span class="text-xl md:text-3xl text-cyan-300/40 font-bold select-none filter drop-shadow-[0_2px_5px_rgba(0,0,0,0.5)]">
+                                        <i :class="getPieceIcon(target.type)"></i>
+                                    </span>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- 
+                          「彈性排版演練層 (Flex Playground Layer)」
+                          藍色虛線範圍標記
+                        -->
+                        <div :id="'board-formation'" :style="playgroundStyle" class="flex-playground p-0.5">
+                            <div v-for="(piece, idx) in currentLevel.pieces" 
+                                 :key="idx"
+                                 :id="'active-piece-' + idx"
+                                 :style="{ width: currentLevel.pieceWidth || '12.5%', height: currentLevel.pieceHeight || '100%' }"
+                                 class="flex items-center justify-center transition-all duration-300 p-0.5">
+                                <div class="w-full h-full bg-gradient-to-b from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-850 border border-slate-700/60 rounded-lg md:rounded-xl flex items-center justify-center shadow-xl transform hover:scale-105 active:scale-95 transition-all text-amber-400 cursor-pointer">
+                                    <span class="text-lg md:text-3xl filter drop-shadow animate-fade-in">
+                                        <i :class="getPieceIcon(piece.type)"></i>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- 5. 中型廣告版位 — 手機端第 6 順位 -->
+                <div class="w-full max-w-[480px] glass-card border border-slate-850 rounded-2xl p-4 flex flex-col items-center justify-center text-center h-[100px] md:h-[120px] relative overflow-hidden shadow-lg order-6 lg:order-none lg:mt-6">
+                    <span class="absolute top-0 left-0 bg-slate-800 text-[9px] px-1.5 py-0.5 text-slate-400 rounded-br font-mono font-bold">AD #2</span>
+                    <p class="text-[10px] md:text-[11px] text-slate-400 mb-1 md:mb-2 font-medium"><i class="fa-solid fa-rectangle-ad mr-1.5 text-amber-500"></i>{{ t('adText') }}</p>
+                    <p class="text-xs text-amber-500 font-bold border border-amber-500/20 rounded-lg px-3 py-1 bg-amber-500/5">
+                        300x250 Medium Rectangle Placeholder
+                    </p>
+                </div>
+
+            </div>
+
+        </main>
+
+        <!-- 互動引導 Onboarding Tour 遮罩層與聚光燈 (優化：增加安全視窗邊界，防超出 X 軸) -->
+        <div v-if="tourActive" class="absolute inset-0 z-50 pointer-events-none overflow-visible">
+            <!-- 聚光燈聚焦框 (剪裁背景，僅照亮目前步驟指定的 ID 區塊) -->
+            <div :style="spotlightStyle" class="pointer-events-none transition-all duration-300"></div>
+
+            <!-- 浮動引導資訊框 (RWD 響應式寬度) -->
+            <div :style="tourDialogStyle" class="pointer-events-auto bg-slate-900/95 backdrop-blur-md border-2 border-amber-500/80 rounded-2xl p-4 md:p-5 shadow-2xl text-slate-200 max-w-[calc(100vw-32px)]">
+                <!-- 步數指示與標題 -->
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-bold">
+                        STEP {{ currentTourStep + 1 }} / 5
+                    </span>
+                    <button @click="endTour" class="text-slate-400 hover:text-white transition text-xs">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <h4 class="text-xs md:text-sm font-extrabold text-white mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-play text-amber-500"></i>
+                    {{ currentTourStepData.title }}
+                </h4>
+                <p class="text-[11px] md:text-xs text-slate-300 leading-relaxed mb-4">
+                    {{ currentTourStepData.desc }}
+                </p>
+
+                <!-- 引導按鈕控制 -->
+                <div class="flex justify-between items-center pt-2.5 border-t border-slate-800/80">
+                    <button @click="endTour" class="text-[10px] md:text-[11px] text-slate-500 hover:text-slate-400 font-medium transition">
+                        {{ t('tour_skip') }}
+                    </button>
+                    <div class="flex gap-2">
+                        <button v-if="currentTourStep > 0" @click="prevTourStep" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition">
+                            {{ t('tour_prev') }}
+                        </button>
+                        <button @click="nextTourStep" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+                            {{ currentTourStep === 4 ? t('tour_finish') : t('tour_next') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 單關成功過關彈窗 -->
+        <div v-if="showSuccessModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-opacity duration-300">
+            <div class="bg-slate-900 border border-amber-500/30 rounded-2xl p-5 md:p-8 max-w-sm md:max-w-md w-full text-center shadow-2xl transform scale-100 transition-all">
+                <div class="w-14 h-14 md:w-16 md:h-16 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-5 border border-amber-500/30 text-2xl md:text-3xl shadow-lg shadow-amber-500/10 animate-bounce">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                
+                <h3 class="text-lg md:text-xl font-black text-white mb-2">{{ t('winTitle') }}</h3>
+                <p class="text-slate-300 text-xs mb-5 md:text-sm leading-relaxed">
+                    {{ t('winDesc') }}
+                </p>
+
+                <!-- 語法簡短回顧 -->
+                <div class="bg-slate-950 rounded-xl p-3 md:p-4 text-left font-mono text-[11px] md:text-xs text-emerald-400 mb-5 md:mb-6 border border-slate-850 shadow-inner">
+                    <span class="text-slate-500">// {{ t('successCode') }}</span>
+                    <pre class="mt-1 leading-relaxed overflow-x-auto">#board-formation {<br>  <span class="text-purple-400">display</span>: <span class="text-amber-300">flex</span>;<br>{{ userCssInput }}<br>}</pre>
+                </div>
+
+                <div class="flex space-x-2 md:space-x-3">
+                    <button @click="showSuccessModal = false" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 md:py-3 rounded-xl text-xs transition-all shadow-md">
+                        {{ t('closeBtn') }}
+                    </button>
+                    <button @click="proceedToNext" class="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-2.5 md:py-3 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20">
+                        {{ t('nextLevelBtn') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 終極全部通關特別慶窗 (Grandmaster Completion Modal) -->
+        <div v-if="showAllCompletedModal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 transition-all duration-500">
+            <div class="relative bg-gradient-to-b from-slate-900 to-slate-950 border border-yellow-500/40 rounded-3xl p-6 md:p-8 max-w-md md:max-w-lg w-full text-center shadow-3xl overflow-hidden">
+                
+                <!-- 旋轉的背後金光效果 -->
+                <div class="absolute -top-24 -left-24 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl animate-pulse"></div>
+                <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl animate-pulse"></div>
+                
+                <!-- 發光的金色大皇冠/勳章圖案 -->
+                <div class="relative w-24 h-24 md:w-28 md:h-28 mx-auto mb-4 md:mb-6 flex items-center justify-center">
+                    <div class="absolute inset-0 bg-gradient-to-tr from-yellow-500 to-amber-300 rounded-full animate-rotate-slow opacity-20 blur-md"></div>
+                    <div class="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-tr from-yellow-400 via-amber-500 to-yellow-300 text-slate-950 rounded-full flex items-center justify-center shadow-2xl border-4 border-yellow-200">
+                        <i class="fa-solid fa-chess-queen text-4xl md:text-5xl animate-bounce"></i>
+                    </div>
+                </div>
+
+                <span class="text-[10px] md:text-[11px] bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 px-3 py-1 rounded-full font-black tracking-widest uppercase mb-3 md:mb-4 inline-block">
+                    🎓 {{ t('grandmasterBadge') }}
+                </span>
+                
+                <h3 class="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-200 mb-2 md:mb-3">
+                    {{ t('grandmasterTitle') }}
+                </h3>
+                
+                <p class="text-slate-300 text-xs md:text-sm mb-5 leading-relaxed px-1 md:px-2">
+                    {{ t('grandmasterDesc') }}
+                </p>
+
+                <!-- 通關戰績摘要 -->
+                <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-3 md:p-4 text-left space-y-2 mb-6 md:mb-8 shadow-inner text-xs">
+                    <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
+                        <span class="text-slate-400"><i class="fa-solid fa-trophy text-yellow-500 mr-1.5"></i>{{ t('achievementType') }}</span>
+                        <span class="text-yellow-400 font-bold">{{ t('achievementVal') }}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
+                        <span class="text-slate-400"><i class="fa-solid fa-graduation-cap text-cyan-400 mr-1.5"></i>{{ t('levelsCompleted') }}</span>
+                        <span class="text-white font-semibold">8 / 8 (100%)</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400"><i class="fa-solid fa-award text-emerald-400 mr-1.5"></i>{{ t('masteredProps') }}</span>
+                        <span class="text-emerald-400 font-mono text-[10px] md:text-[11px]">direction, justify, align, wrap</span>
+                    </div>
+                </div>
+
+                <!-- 按鈕控制 -->
+                <div class="flex flex-col gap-2.5">
+                    <button @click="resetProgress" class="w-full bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-black py-3 rounded-2xl text-xs md:text-sm transition-all shadow-xl shadow-yellow-500/10 tracking-widest uppercase">
+                        <i class="fa-solid fa-arrow-rotate-left mr-1.5"></i> {{ t('replayBtn') }}
+                    </button>
+                    <button @click="showAllCompletedModal = false" class="w-full bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold py-3 rounded-2xl text-xs md:text-sm transition-all border border-slate-700">
+                        {{ t('backToGame') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部廣告與頁腳 -->
+        <footer class="bg-slate-950/80 border-t border-slate-900 py-4 md:py-6 px-4 md:px-6 mt-6 md:mt-8 flex flex-col items-center justify-between gap-4">
+            
+            <!-- 底部橫幅廣告位 (Google Ad Placeholder 3) -->
+            <div class="w-full max-w-4xl bg-slate-900/40 border border-slate-850 rounded-xl py-3 px-4 flex flex-col md:flex-row items-center justify-between text-xs text-slate-500 relative overflow-hidden gap-2">
+                <span class="absolute top-0 left-0 bg-slate-800 text-[8px] px-1.5 py-0.5 text-slate-400 rounded-br font-mono font-bold">AD #3</span>
+                <span class="text-slate-400 font-medium text-[10px] md:text-[11px]"><i class="fa-solid fa-rectangle-ad mr-1.5 text-amber-500"></i>{{ t('adText') }}</span>
+                <span class="text-[9px] md:text-[10px] text-amber-500/80 border border-amber-500/20 rounded-md px-2 py-0.5 bg-amber-500/5 font-mono">
+                    728x90 Leaderboard Placeholder
+                </span>
+            </div>
+
+            <div class="flex flex-col md:flex-row items-center justify-between w-full max-w-7xl text-[10px] md:text-xs text-slate-500 border-t border-slate-900/60 pt-4 gap-2 text-center md:text-left">
+                <p>© 2026 FlexChess | 專為 CSS Flexbox 與西洋棋新手打造的融合式學習平台</p>
+                <div class="flex space-x-4">
+                    <a href="https://developer.mozilla.org/zh-TW/docs/Web/CSS/CSS_Flexible_Box_Layout" target="_blank" class="hover:text-amber-400 transition-colors">MDN Flexbox Docs</a>
+                    <a href="#" class="hover:text-amber-400 transition-colors">Chess Rules Guide</a>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Three.js 幾何宇宙排場景控制腳本 -->
+    <script>
+        let scene, camera, renderer, starField, floatingBoard, chessPieces = [];
+        let mouseX = 0, mouseY = 0;
+        let targetX = 0, targetY = 0;
+        let is3DRendererActive = true;
+        let animationFrameId;
+
+        // 初始化 3D 宇宙星際棋盤
+        function initThreeJS() {
+            const container = document.getElementById('three-canvas-container');
+            if (!container) return;
+
+            // 創建場景
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x05070f, 0.015);
+
+            // 創建相機
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 12);
+            camera.lookAt(0, 1, 0);
+
+            // 創建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setClearColor(0x05070f, 1);
+            container.appendChild(renderer.domElement);
+
+            // 添加燈光 (霓虹雙色點光源)
+            const ambientLight = new THREE.AmbientLight(0x1e293b, 1.2);
+            scene.add(ambientLight);
+
+            const amberLight = new THREE.PointLight(0xf59e0b, 3.5, 30);
+            amberLight.position.set(-6, 4, 3);
+            scene.add(amberLight);
+
+            const cyanLight = new THREE.PointLight(0x06b6d4, 3.5, 30);
+            cyanLight.position.set(6, -2, 3);
+            scene.add(cyanLight);
+
+            // 創建背景微塵粒子 (Starfield)
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsCount = 350;
+            const starPositions = new Float32Array(starsCount * 3);
+            for(let i=0; i < starsCount * 3; i++) {
+                starPositions[i] = (Math.random() - 0.5) * 50;
+            }
+            starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+            const starsMaterial = new THREE.PointsMaterial({
+                color: 0x3b82f6,
+                size: 0.08,
+                transparent: true,
+                opacity: 0.6
+            });
+            starField = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(starField);
+
+            // 創建宇宙 3D 浮空棋盤
+            floatingBoard = new THREE.Group();
+            const boxGeo = new THREE.BoxGeometry(1.2, 0.15, 1.2);
+            const lightGridMat = new THREE.MeshStandardMaterial({ 
+                color: 0x1e293b, 
+                roughness: 0.4, 
+                metalness: 0.8,
+                emissive: 0x06b6d4,
+                emissiveIntensity: 0.08
+            });
+            const darkGridMat = new THREE.MeshStandardMaterial({ 
+                color: 0x0f172a, 
+                roughness: 0.7, 
+                metalness: 0.9,
+                emissive: 0xf59e0b,
+                emissiveIntensity: 0.02
+            });
+
+            // 程序化渲染 6x6 立體棋盤 (置中效果較好)
+            for (let x = -3; x < 3; x++) {
+                for (let z = -3; z < 3; z++) {
+                    const mat = (x + z) % 2 === 0 ? lightGridMat : darkGridMat;
+                    const tile = new THREE.Mesh(boxGeo, mat);
+                    tile.position.set(x * 1.3, 0, z * 1.3);
+                    floatingBoard.add(tile);
+                }
+            }
+            floatingBoard.position.y = -2;
+            floatingBoard.rotation.x = 0.3; // 稍作微傾
+            scene.add(floatingBoard);
+
+            // 程序化創建帶有 Sci-Fi 光澤的西洋棋子
+            // 棋子 1: 黃金騎士 (Procedural Knight)
+            const goldKnight = new THREE.Group();
+            const baseGeo = new THREE.CylinderGeometry(0.6, 0.7, 0.3, 16);
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.2 });
+            const base = new THREE.Mesh(baseGeo, baseMat);
+            goldKnight.add(base);
+
+            const bodyGeo = new THREE.CylinderGeometry(0.3, 0.5, 1.2, 16);
+            const body = new THREE.Mesh(bodyGeo, baseMat);
+            body.position.y = 0.75;
+            goldKnight.add(body);
+
+            const headGeo = new THREE.BoxGeometry(0.6, 0.5, 0.9);
+            const head = new THREE.Mesh(headGeo, baseMat);
+            head.position.set(0, 1.4, 0.2);
+            head.rotation.x = 0.2;
+            goldKnight.add(head);
+
+            goldKnight.position.set(-2.5, -1.2, 1);
+            goldKnight.scale.set(1.2, 1.2, 1.2);
+            scene.add(goldKnight);
+            chessPieces.push(goldKnight);
+
+            // 棋子 2: 霓虹冰晶國王 (Procedural King)
+            const cyanKing = new THREE.Group();
+            const cyanMat = new THREE.MeshStandardMaterial({ color: 0x06b6d4, metalness: 0.7, roughness: 0.1, transparent: true, opacity: 0.85 });
+            
+            const kingBase = new THREE.Mesh(baseGeo, cyanMat);
+            cyanKing.add(kingBase);
+
+            const kingBodyGeo = new THREE.ConeGeometry(0.5, 1.8, 16);
+            const kingBody = new THREE.Mesh(kingBodyGeo, cyanMat);
+            kingBody.position.y = 0.9;
+            cyanKing.add(kingBody);
+
+            const crownGeo = new THREE.SphereGeometry(0.45, 16, 16);
+            const crown = new THREE.Mesh(crownGeo, cyanMat);
+            crown.position.y = 1.9;
+            cyanKing.add(crown);
+
+            const crossGeo = new THREE.BoxGeometry(0.15, 0.45, 0.15);
+            const cross = new THREE.Mesh(crossGeo, cyanMat);
+            cross.position.y = 2.3;
+            cyanKing.add(cross);
+
+            cyanKing.position.set(2.5, -1.2, -1);
+            cyanKing.scale.set(1.1, 1.1, 1.1);
+            scene.add(cyanKing);
+            chessPieces.push(cyanKing);
+
+            // 滑鼠與觸控事件傾聽器
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('touchmove', onTouchMove, { passive: true });
+            window.addEventListener('resize', onWindowResize);
+
+            animateThreeJS();
+        }
+
+        // 滑鼠與觸控視角傾斜計算
+        function onMouseMove(event) {
+            mouseX = (event.clientX - window.innerWidth / 2) / 150;
+            mouseY = (event.clientY - window.innerHeight / 2) / 150;
+        }
+
+        function onTouchMove(event) {
+            if (event.touches.length > 0) {
+                mouseX = (event.touches[0].clientX - window.innerWidth / 2) / 120;
+                mouseY = (event.touches[0].clientY - window.innerHeight / 2) / 120;
+            }
+        }
+
+        // 觸發重繪 3D Viewport
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // 3D 渲染迴圈
+        function animateThreeJS() {
+            if (!is3DRendererActive) return;
+
+            animationFrameId = requestAnimationFrame(animateThreeJS);
+
+            const time = Date.now() * 0.001;
+
+            // 星際粒子微動
+            if (starField) {
+                starField.rotation.y = time * 0.015;
+            }
+
+            // 浮空棋盤緩慢起伏自轉
+            if (floatingBoard) {
+                floatingBoard.rotation.y = time * 0.05;
+                floatingBoard.position.y = -2 + Math.sin(time * 0.5) * 0.15;
+            }
+
+            // 3D 棋子各自呼吸與浮動
+            chessPieces.forEach((piece, i) => {
+                piece.rotation.y = -time * 0.15 * (i === 0 ? 1 : -1);
+                piece.position.y = -1.2 + Math.sin(time * 0.8 + i * Math.PI) * 0.2;
+            });
+
+            // 緩衝平滑 Camera 微幅偏轉
+            targetX += (mouseX - targetX) * 0.05;
+            targetY += (mouseY - targetY) * 0.05;
+
+            camera.position.x = targetX;
+            camera.position.y = 5 - targetY;
+            camera.lookAt(0, -0.5, 0);
+
+            renderer.render(scene, camera);
+        }
+
+        // 當載入完成後啟動 Three.js
+        window.onload = function() {
+            initThreeJS();
+        };
+    </script>
+
+    <script>
+        const { createApp, ref, computed, watch, onMounted, nextTick } = Vue;
+
+        // 多語言字典
+        const translations = {
+            zh: {
+                subtitle: "透過西洋棋兵陣，解鎖 display: flex 等基本彈性語法",
+                level: "關卡",
+                adText: "贊助商優質廣告 (Google AdSense 預留)",
+                editComment: "在下方輸入 Flexbox 語法控制棋子排列",
+                displayComment: "外層容器已預設啟用彈性盒模型",
+                editorPlaceholder: "/* 在此輸入樣式，例如：\n   justify-content: space-between;\n*/",
+                resetBtn: "重設此關",
+                hintBtn: "戰術提示",
+                hintTitle: "戰術提示",
+                checkBtn: "部署與驗證",
+                cheatSheetTitle: "Flexbox 快速查閱兵書",
+                propDir: "主軸方向 (flex-direction)",
+                propJust: "主軸對齊 (justify-content)",
+                propAlign: "副軸對齊 (align-items)",
+                propWrap: "折行排版 (flex-wrap)",
+                default: "預設值",
+                winTitle: "戰術完美達成！",
+                winDesc: "你成功運用了 Flexbox 佈局，將棋子準確放置在指定的戰術要地上！",
+                successCode: "你寫出的精妙排版代碼：",
+                closeBtn: "留在本關",
+                nextLevelBtn: "下一關卡",
+                academyTitle: "西洋棋教室 (Chess Academy)",
+                howToWin: "過關任務",
+                quickInsert: "常用語法晶片 (點擊快速填入)",
+                
+                // 3D 開場獨有翻譯
+                intro_title: "FlexChess: 3D 彈性維度",
+                intro_tagline: "融合「西洋棋戰術美學」與「CSS Flexbox 佈局盒模型」的未來感三維學習空間。操控指令，完美排開守護疆土的鋼鐵兵陣！",
+                intro_btn: "開啟兵防部署",
+                toggle_3d: "3D 背景",
+
+                // 終極大師慶祝文字
+                grandmasterBadge: "頂尖榮譽",
+                grandmasterTitle: "加冕！Flexbox 西洋棋傳奇大師",
+                grandmasterDesc: "太不可思議了！你完美運用了 Flexbox 的方向、對齊與折行，破解了所有極具挑戰性的西洋棋兵防陣局。你現在已經擁有征服所有複雜 CSS 佈局的排版能力！",
+                achievementType: "大師封號",
+                achievementVal: "西洋棋 CSS 總司令官",
+                levelsCompleted: "戰術佈陣完成度",
+                masteredProps: "已精通彈性屬性",
+                replayBtn: "重設進度並重新挑戰",
+                backToGame: "回到棋盤欣賞",
+
+                // 導覽引導文字
+                tour_btn: "教學",
+                tour_next: "下一步",
+                tour_prev: "上一步",
+                tour_skip: "跳過",
+                tour_finish: "開始部署！",
+
+                // 難度分級文字
+                difficulty: "難度",
+                diff_easy: "初階 (Beginner)",
+                diff_medium: "中階 (Intermediate)",
+                diff_hard: "高階 (Advanced)",
+
+                // 關卡 1
+                l1Title: "初階・第一課：雙車守邊疆 (Rook Defense)",
+                l1Desc: "兩座城堡（Rook）需要在底線守護左右國境。請使用 justify-content 讓他們各據一方（分別留在 A1 與 H1）。",
+                l1PieceName: "車 (Rook)",
+                l1PieceRule: "「車」是直線霸主！它可以沿著直線（橫列或直行）移動任意步數，但不能跳過其他棋子。它的力量在開放通道上最強大。",
+                l1Mission: "將兩架城堡移動到最底下排 A1 和 H1 兩個角落守護國界。",
+                l1Hint: "嘗試在 CSS 中輸入 justify-content: space-between; 讓雙車靠向容器兩端。",
+
+                // 關卡 2
+                l2Title: "初階・第二課：雙象出擊 (Bishop's Crossing)",
+                l2Desc: "兩位主教（Bishop）準備進行對角線交叉掩護。請將他們放置於 C1 與 F1 以便射線能直指戰場中央！",
+                l2PieceName: "象 (Bishop)",
+                l2PieceRule: "「象」是斜線刺客！它只能沿著「對角線」移動任意步數。因為只能走斜線，所以起點是深色格的象就一輩子只能在深色格移動，反之亦然。",
+                l2Mission: "將兩個主教均勻分佈在底排的 C1 與 F1 位置。",
+                l2Hint: "當 2 個棋子置於 100% 寬度容器時，使用 justify-content: space-evenly; 可以完美均分空間，使他們剛好對齊 C 和 F 欄！",
+
+                // 關卡 3
+                l3Title: "初階・第三課：重騎縱向突擊 (The Knight's Leap)",
+                l3Desc: "騎士們（Knight）準備由 A 欄發動垂直突襲。此時主軸必須切換成縱向。請將主軸方向改為垂直直列（column）！",
+                l3PieceName: "馬 (Knight)",
+                l3PieceRule: "「馬」是唯一可以「跳躍」的奇兵！它的走法是獨特的「L」字形（先直走2格再往旁邊走1格，或橫走2格再往旁邊走1格）。",
+                l3Mission: "在最左側 A 欄由下至上（A1, A2, A3）將騎士們垂直排成一列。",
+                l3Hint: "首先輸入 flex-direction: column; 來將主軸轉為垂直，騎士們就會在 A 欄自動縱向排列。",
+
+                // 關卡 4
+                l4Title: "初階・第四課：皇權核心 (The Royal Guard)",
+                l4Desc: "國王（King）與王后（Queen）需要集中在第一排的中央核心（D1 與 E1 格）商討國策。請將兩個棋子向水平正中央靠攏！",
+                l4PieceName: "國王與王后 (King & Queen)",
+                l4PieceRule: "「后」是棋盤上最強戰力，能任意直線、斜線移動；「王」是全軍核心，一次只能走一格。保護國王是整場遊戲唯一的目標！",
+                l4Mission: "將王與后水平集結在底線 D1 與 E1 格。",
+                l4Hint: "使用 justify-content: center; 可以讓所有子元素在主軸（水平方向）上向正中間對齊。",
+
+                // 關卡 5
+                l5Title: "初階・第五課：步兵防禦牆 (Pawn Wall Formation)",
+                l5Desc: "我們有 8 個兵（Pawn）需要排成兩排防線。然而寬度不夠一次塞下。請使用折行語法，讓他們超出的部分折返到第二排！",
+                l5PieceName: "兵 (Pawn)",
+                l5PieceRule: "「兵」是鐵衛防線！它們只能一步步往前直走（第一步可以選擇走兩格），但吃子時是吃「斜前方」一格。兵是西洋棋陣型的基石。",
+                l5Mission: "在左側 A 到 D 欄範圍內，將 8 個兵排成 4x2（兩排）的鋼鐵陣行 (第1排與第2排)。",
+                l5Hint: "當容器寬度設限為 4 格寬時，輸入 flex-wrap: wrap; 就能讓超出的兵自然折返至第 2 排，形成完美防禦線。",
+
+                // 關卡 6
+                l6Title: "中階・第六課：騎士中域會師 (Cavalry Center Rally)",
+                l6Desc: "兩位皇家騎士要在 E 欄的戰略核心（E4 與 E5 格）會師。請使用垂直對齊與置中技巧，把他們部署到正中央！",
+                l6PieceName: "馬 (Knight)",
+                l6PieceRule: "複習：「馬」在棋盤中央的威脅最大，因為從中心出發，它的「L」形跳躍步法可以同時控制周圍多達 8 個格子！",
+                l6Mission: "在 E 欄將兩架騎士垂直置中，精準落在 E4 與 E5 位置。",
+                l6Hint: "將主軸轉為垂直：flex-direction: column;，並利用 justify-content: center; 使兩名騎士在縱向排列中靠向中央。",
+
+                // 關卡 7
+                l7Title: "高階・第七課：後翼逆向合圍 (Back-rank Flank Reversal)",
+                l7Desc: "面對對手突襲，我們需要將主教、騎士與城堡部署在 A1、B1 與 C1。但預設的排列順序是相反的！請啟用「反向主軸」並將他們推到左側。",
+                l7PieceName: "複合兵陣 (Combined Force)",
+                l7PieceRule: "「王翼與后翼的協同」：不同性質的棋子互相掩護。主教斜向切入、騎士跳躍協防、城堡直線封鎖，構成完美的防衛網。",
+                l7Mission: "將主教放在 A1、騎士在 B1、城堡在 C1，完成反向封鎖。",
+                l7Hint: "你需要使用 flex-direction: row-reverse; 來將順序徹底反轉。接著，由於 row-reverse 的起點變成了右邊，你必須使用 justify-content: flex-end; 才能將反向後的佇列往左側（A-C欄）推送！",
+
+                // 關卡 8
+                l8Title: "高階・第八課：鐵壁堡壘逆折 (Iron Fort Wrap-Reverse)",
+                l8Desc: "我們有 6 個步兵要守住右下角（E 到 H 欄的 1、2 排）。傳統的換行會從第2排先填滿。但這次我們需要他們優先站滿最底線（第1排），超出部分才向上折行！",
+                l8PieceName: "兵 (Pawn)",
+                l8PieceRule: "複習：「兵」通常希望待在底線提供王城保護。這關需要將第一排填滿（E1, F1, G1, H1），剩餘 of the 2 個兵再到第二排（E2, F2）作第二層防線。",
+                l8Mission: "在右下 4x2 區域內部署 6 個兵，優先填滿第一排 (Row 1)，超出的兵在第二排 (Row 2) 折行。",
+                l8Hint: "普通的 wrap 是由上往下折。如果你想要由下往上折（優先佔領底線，超出的往上排），你必須使用 flex-wrap: wrap-reverse;！"
+            },
+            en: {
+                subtitle: "Master basic Flexbox layout rules through Chess formations",
+                level: "Level",
+                adText: "Sponsored Advertisement (Google AdSense Placeholder)",
+                editComment: "Input Flexbox styles below to control chess placement",
+                displayComment: "Flexbox container active by default",
+                editorPlaceholder: "/* Type styles here, e.g.,\n   justify-content: space-between;\n*/",
+                resetBtn: "Reset Level",
+                hintBtn: "Tactical Hint",
+                hintTitle: "Tactical Hint",
+                checkBtn: "Deploy & Verify",
+                cheatSheetTitle: "Flexbox Quick Codex",
+                propDir: "Main Axis Direction (flex-direction)",
+                propJust: "Main Axis Alignment (justify-content)",
+                propAlign: "Cross Axis Alignment (align-items)",
+                propWrap: "Wrap Behavior (flex-wrap)",
+                default: "Default",
+                winTitle: "Tactics Achieved!",
+                winDesc: "You have deployed your chess pieces into perfect strategic positions using Flexbox!",
+                successCode: "Your masterful layout code:",
+                closeBtn: "Stay here",
+                nextLevelBtn: "Next Level",
+                academyTitle: "Chess Academy",
+                howToWin: "Mission Goal",
+                quickInsert: "Quick CSS Chips (Tap to insert)",
+                
+                // 3D Intro en translation
+                intro_title: "FlexChess: 3D Dimensions",
+                intro_tagline: "Bridging 'Chess Tactical Aesthetics' and 'CSS Flexbox Box Model' in a futuristic 3D learning atmosphere. Input directions, align, and defend the realm!",
+                intro_btn: "Initiate Deployment",
+                toggle_3d: "3D Space",
+
+                // Grandmaster Text
+                grandmasterBadge: "Top Honor",
+                grandmasterTitle: "Crowned! Flexbox Chess Grandmaster",
+                grandmasterDesc: "Unbelievable! You have perfectly utilized Flexbox directions, alignment, and wrapping to solve all highly challenging tactical defense structures on the chessboard. You are now officially ready to handle any complex layout!",
+                achievementType: "Grandmaster Title",
+                achievementVal: "CSS Chess Commander",
+                levelsCompleted: "Tactical Completion Rate",
+                masteredProps: "Mastered Flex Properties",
+                replayBtn: "Reset Progress & Replay",
+                backToGame: "Return to Board",
+
+                // Tour guide Text
+                tour_btn: "Tour",
+                tour_next: "Next",
+                tour_prev: "Prev",
+                tour_skip: "Skip",
+                tour_finish: "Start Battle!",
+
+                // Difficulty tags
+                difficulty: "Difficulty",
+                diff_easy: "Beginner",
+                diff_medium: "Intermediate",
+                diff_hard: "Advanced",
+
+                // Level 1
+                l1Title: "Beginner · Lesson 1: Rook Defense",
+                l1Desc: "Two Rooks need to guard the borders by placing themselves at the absolute corners of the bottom row (A1 and H1). Align them using justify-content.",
+                l1PieceName: "Rook",
+                l1PieceRule: "The Rook is the straight-line powerhouse! It moves horizontally or vertically across any number of unoccupied squares. It controls open corridors.",
+                l1Mission: "Position two Rooks at the absolute corners (A1 and H1) of the bottom rank.",
+                l1Hint: "Try entering justify-content: space-between; to separate the Rooks to both extreme ends.",
+
+                // Level 2
+                l2Title: "Beginner · Lesson 2: Bishop's Crossing",
+                l2Desc: "Two Bishops are preparing to cross-cover. Place them on C1 and F1 so their diagonals point towards the center of the battlefield!",
+                l2PieceName: "Bishop",
+                l2PieceRule: "The Bishop is the diagonal sniper! It moves diagonally only, which means a dark-squared Bishop is locked to dark squares forever.",
+                l2Mission: "Place both Bishops on C1 and F1 on the bottom rank.",
+                l2Hint: "Using justify-content: space-evenly; with 2 items on an 8-column wide container aligns them perfectly on columns 3 (C) and 6 (F)!",
+
+                // Level 3
+                l3Title: "Beginner · Lesson 3: The Knight's Vertical Charge",
+                l3Desc: "Our Knights are initiating a vertical assault. Change the layout axis from horizontal to vertical column alignment.",
+                l3PieceName: "Knight",
+                l3PieceRule: "The Knight is the trickster! It is the only piece that can jump over other pieces. It moves in an 'L' shape (2 squares in one direction, then 1 perpendicular).",
+                l3Mission: "Line up three Knights vertically on A1, A2, and A3 on the left-most A-file.",
+                l3Hint: "Enter flex-direction: column; to rotate the direction of alignment to vertical.",
+
+                // Level 4
+                l4Title: "Beginner · Lesson 4: The Royal Guard",
+                l4Desc: "The King and Queen need to meet in the middle of the bottom rank (D1 and E1) to coordinate defensive moves. Bring them together into the center!",
+                l4PieceName: "King & Queen",
+                l4PieceRule: "The Queen is the most powerful piece, moving in any straight or diagonal direction. The King moves only 1 square but must be protected at all costs.",
+                l4Mission: "Center both the King and Queen on D1 and E1 at the middle of the bottom rank.",
+                l4Hint: "Use justify-content: center; to gather all flex items to the middle of the horizontal axis.",
+
+                // Level 5
+                l5Title: "Beginner · Lesson 5: Pawn Wall Formation",
+                l5Desc: "We have 8 Pawns ready to form a battle line. However, the container is too narrow for all 8 in a single row. Enable wrapping so they split nicely into two ranks!",
+                l5PieceName: "Pawn",
+                l5PieceRule: "The Pawn is the front line defense! It moves forward 1 square (or 2 on its first move) but captures diagonally. They form the solid shield.",
+                l5Mission: "Align 8 Pawns into a tight 4x2 defensive grid covering A1-D1 and A2-D2.",
+                l5Hint: "Type flex-wrap: wrap; to allow items to flow naturally onto the next row once they run out of horizontal space.",
+
+                // Level 6
+                l6Title: "Intermediate · Lesson 6: Cavalry Center Rally",
+                l6Desc: "Two Knights need to occupy the crucial center squares of the E-column (E4 and E5). Use column layout and vertical centering!",
+                l6PieceName: "Knight",
+                l6PieceRule: "Reminder: A Knight placed in the center controls up to 8 squares, maximizing its tactical threat over the entire board.",
+                l6Mission: "Center two Knights vertically inside the E-column, landing exactly on E4 and E5.",
+                l6Hint: "Set flex-direction: column; and combine it with justify-content: center; to align the pieces in the vertical middle.",
+
+                // Level 7
+                l7Title: "Advanced · Lesson 7: Back-rank Flank Reversal",
+                l7Desc: "We need our Bishop, Knight, and Rook on A1, B1, and C1. But default flow draws them backwards! Reverse the flow and align them to the left.",
+                l7PieceName: "Combined Force",
+                l7PieceRule: "Coordination of forces: Different pieces covering each other's blindspots create an impenetrable defensive block.",
+                l7Mission: "Place Bishop on A1, Knight on B1, and Rook on C1 to complete the reversed tactical block.",
+                l7Hint: "Use flex-direction: row-reverse; to flip the element order. Since the row-reverse starting point is on the right, you must use justify-content: flex-end; to push them to the left end (columns A to C)!",
+
+                // Level 8
+                l8Title: "Advanced · Lesson 8: Iron Fort Wrap-Reverse",
+                l8Desc: "We have 6 Pawns to deploy in the bottom-right corner (E to H files). They must secure the bottom rank first (Row 1), with excess pawns wrapping upwards to Row 2.",
+                l8PieceName: "Pawn",
+                l8PieceRule: "Pawns want to fortify the base rank first. Fill Row 1 (E1-H1) entirely, then let the remaining 2 Pawns form a second layer on Row 2 (E2-F2).",
+                l8Mission: "Deploy 6 Pawns in the E-H / Rows 1-2 area, filling Row 1 first and wrapping upwards to Row 2.",
+                l8Hint: "Normal wrap folds items top-to-bottom. To fold items bottom-to-top, you need to use flex-wrap: wrap-reverse;!"
+            }
+        };
+
+        // 重新分配與排序關卡 (共 8 個精選關卡，排除多餘城堡關)
+        const levels = [
+            // ================= 初階 (Beginner) =================
+            {
+                difficultyKey: 'diff_easy',
+                titleKey: 'l1Title',
+                descKey: 'l1Desc',
+                hintKey: 'l1Hint',
+                pieceNameKey: 'l1PieceName',
+                pieceRuleKey: 'l1PieceRule',
+                missionKey: 'l1Mission',
+                pieces: [
+                    { type: 'rook' },
+                    { type: 'rook' }
+                ],
+                targets: [
+                    { type: 'rook', x: 1, y: 1 }, // A1
+                    { type: 'rook', x: 8, y: 1 }  // H1
+                ],
+                defaultStyles: {
+                    width: '100%',
+                    height: '12.5%',
+                    top: '87.5%',
+                    left: '0'
+                },
+                pieceWidth: '12.5%',  
+                pieceHeight: '100%'   
+            },
+            {
+                difficultyKey: 'diff_easy',
+                titleKey: 'l2Title',
+                descKey: 'l2Desc',
+                hintKey: 'l2Hint',
+                pieceNameKey: 'l2PieceName',
+                pieceRuleKey: 'l2PieceRule',
+                missionKey: 'l2Mission',
+                pieces: [
+                    { type: 'bishop' },
+                    { type: 'bishop' }
+                ],
+                targets: [
+                    { type: 'bishop', x: 3, y: 1 }, // C1
+                    { type: 'bishop', x: 6, y: 1 }  // F1
+                ],
+                defaultStyles: {
+                    width: '100%',
+                    height: '12.5%',
+                    top: '87.5%',
+                    left: '0'
+                },
+                pieceWidth: '12.5%',
+                pieceHeight: '100%'
+            },
+            {
+                difficultyKey: 'diff_easy',
+                titleKey: 'l3Title',
+                descKey: 'l3Desc',
+                hintKey: 'l3Hint',
+                pieceNameKey: 'l3PieceName',
+                pieceRuleKey: 'l3PieceRule',
+                missionKey: 'l3Mission',
+                pieces: [
+                    { type: 'knight' },
+                    { type: 'knight' },
+                    { type: 'knight' }
+                ],
+                targets: [
+                    { type: 'knight', x: 1, y: 3 }, // A3
+                    { type: 'knight', x: 1, y: 2 }, // A2
+                    { type: 'knight', x: 1, y: 1 }  // A1
+                ],
+                defaultStyles: {
+                    width: '12.5%',
+                    height: '37.5%',
+                    top: '62.5%',
+                    left: '0'
+                },
+                pieceWidth: '100%', 
+                pieceHeight: '33.33%' 
+            },
+            {
+                difficultyKey: 'diff_easy',
+                titleKey: 'l4Title',
+                descKey: 'l4Desc',
+                hintKey: 'l4Hint',
+                pieceNameKey: 'l4PieceName',
+                pieceRuleKey: 'l4PieceRule',
+                missionKey: 'l4Mission',
+                pieces: [
+                    { type: 'queen' },
+                    { type: 'king' }
+                ],
+                targets: [
+                    { type: 'queen', x: 4, y: 1 }, // D1
+                    { type: 'king', x: 5, y: 1 }  // E1
+                ],
+                defaultStyles: {
+                    width: '100%',
+                    height: '12.5%',
+                    top: '87.5%',
+                    left: '0'
+                },
+                pieceWidth: '12.5%',
+                pieceHeight: '100%'
+            },
+            {
+                difficultyKey: 'diff_easy',
+                titleKey: 'l5Title',
+                descKey: 'l5Desc',
+                hintKey: 'l5Hint',
+                pieceNameKey: 'l5PieceName',
+                pieceRuleKey: 'l5PieceRule',
+                missionKey: 'l5Mission',
+                pieces: [
+                    { type: 'pawn' }, { type: 'pawn' }, { type: 'pawn' }, { type: 'pawn' },
+                    { type: 'pawn' }, { type: 'pawn' }, { type: 'pawn' }, { type: 'pawn' }
+                ],
+                targets: [
+                    { type: 'pawn', x: 1, y: 2 }, { type: 'pawn', x: 2, y: 2 }, { type: 'pawn', x: 3, y: 2 }, { type: 'pawn', x: 4, y: 2 }, // A2 - D2
+                    { type: 'pawn', x: 1, y: 1 }, { type: 'pawn', x: 2, y: 1 }, { type: 'pawn', x: 3, y: 1 }, { type: 'pawn', x: 4, y: 1 }  // A1 - D1
+                ],
+                defaultStyles: {
+                    width: '50%', 
+                    height: '25%', 
+                    top: '75%',
+                    left: '0'
+                },
+                pieceWidth: '25%',  
+                pieceHeight: '50%'  
+            },
+            // ================= 中階 (Intermediate) =================
+            {
+                difficultyKey: 'diff_medium',
+                titleKey: 'l6Title',
+                descKey: 'l6Desc',
+                hintKey: 'l6Hint',
+                pieceNameKey: 'l3PieceName',
+                pieceRuleKey: 'l6PieceRule',
+                missionKey: 'l6Mission',
+                pieces: [
+                    { type: 'knight' },
+                    { type: 'knight' }
+                ],
+                targets: [
+                    { type: 'knight', x: 5, y: 5 }, // E5
+                    { type: 'knight', x: 5, y: 4 }  // E4
+                ],
+                defaultStyles: {
+                    width: '12.5%',
+                    height: '100%',
+                    top: '0',
+                    left: '50%' // E file
+                },
+                pieceWidth: '100%',
+                pieceHeight: '12.5%'
+            },
+            // ================= 高階 (Advanced) =================
+            {
+                difficultyKey: 'diff_hard',
+                titleKey: 'l7Title',
+                descKey: 'l7Desc',
+                hintKey: 'l7Hint',
+                pieceNameKey: 'l8PieceName',
+                pieceRuleKey: 'l7PieceRule',
+                missionKey: 'l7Mission',
+                pieces: [
+                    { type: 'bishop' },
+                    { type: 'knight' },
+                    { type: 'rook' }
+                ],
+                targets: [
+                    { type: 'bishop', x: 1, y: 1 }, // A1
+                    { type: 'knight', x: 2, y: 1 }, // B1
+                    { type: 'rook', x: 3, y: 1 }   // C1
+                ],
+                defaultStyles: {
+                    width: '50%', // A-D column
+                    height: '12.5%',
+                    top: '87.5%',
+                    left: '0'
+                },
+                pieceWidth: '25%', 
+                pieceHeight: '100%'
+            },
+            {
+                difficultyKey: 'diff_hard',
+                titleKey: 'l8Title',
+                descKey: 'l8Desc',
+                hintKey: 'l8Hint',
+                pieceNameKey: 'l5PieceName',
+                pieceRuleKey: 'l8PieceRule',
+                missionKey: 'l8Mission',
+                pieces: [
+                    { type: 'pawn' }, { type: 'pawn' }, { type: 'pawn' }, { type: 'pawn' },
+                    { type: 'pawn' }, { type: 'pawn' }
+                ],
+                targets: [
+                    { type: 'pawn', x: 5, y: 1 }, { type: 'pawn', x: 6, y: 1 }, { type: 'pawn', x: 7, y: 1 }, { type: 'pawn', x: 8, y: 1 }, // E1 - H1
+                    { type: 'pawn', x: 5, y: 2 }, { type: 'pawn', x: 6, y: 2 }  // E2 - F2
+                ],
+                defaultStyles: {
+                    width: '50%', // E-H column
+                    height: '25%', // Row 1 & 2
+                    top: '75%',
+                    left: '50%'
+                },
+                pieceWidth: '25%',  
+                pieceHeight: '50%'  
+            }
+        ];
+
+        createApp({
+            setup() {
+                const currentLang = ref('zh');
+                const currentLevelIndex = ref(0);
+                const userCssInput = ref('');
+                const showHint = ref(false);
+                const showSuccessModal = ref(false);
+                const showAllCompletedModal = ref(false); // 控制傳奇大師慶祝視窗
+                const isMuted = ref(false);
+                const completedLevels = ref([]); // 保存通關紀錄
+
+                // 3D 與開場狀態 (NEW)
+                const introActive = ref(true);
+                const is3DActive = ref(true);
+
+                // 導覽狀態
+                const tourActive = ref(false);
+                const currentTourStep = ref(0);
+
+                const tourSteps = [
+                    {
+                        element: '#level-info-card',
+                        title: '步驟 1：閱讀戰術指令',
+                        desc: '這裡是關卡指示。在此您會了解扮演的棋子種類（例如主教、城堡），以及需要將其排開的特定任務與位置。',
+                        placement: 'bottom'
+                    },
+                    {
+                        element: '#chess-academy-card',
+                        title: '步驟 2：西洋棋基本法',
+                        desc: '零基礎也不用擔心！這裡提供該棋子的物理移動規則與特色解說。',
+                        placement: 'bottom'
+                    },
+                    {
+                        element: '#css-editor-card',
+                        title: '步驟 3：Flexbox 編輯器',
+                        desc: '最重要的編譯主戰場！在這裡輸入 Flexbox 語法（外層容器預設已啟用 display: flex）。輸入的代碼將會控制右側棋子的排版。',
+                        placement: 'bottom'
+                    },
+                    {
+                        element: '#quick-chips-card',
+                        title: '步驟 4：快捷代碼晶片',
+                        desc: '我們為您準備了專屬的代碼輔助晶片。點擊它們即可直接將語法插入編輯器，不用在手機上費心打字！',
+                        placement: 'top'
+                    },
+                    {
+                        element: '#chessboard-container',
+                        title: '步驟 5：棋盤對齊部署',
+                        desc: '觀察棋盤！藍色虛線框內為您正在操控的棋子。將它們與「高對比霓虹青色」虛線標記的目標格完美對齊。點擊「部署與驗證」即可解鎖通關！',
+                        placement: 'top'
+                    }
+                ];
+
+                // 聚光燈聚焦計算
+                const spotlightStyle = ref({ display: 'none' });
+                const tourDialogStyle = ref({ display: 'none' });
+
+                const updateTourPosition = () => {
+                    if (!tourActive.value) {
+                        spotlightStyle.value = { display: 'none' };
+                        tourDialogStyle.value = { display: 'none' };
+                        return;
+                    }
+
+                    const step = tourSteps[currentTourStep.value];
+                    const el = document.querySelector(step.element);
+                    if (!el) return;
+
+                    const rect = el.getBoundingClientRect();
+                    const scrollY = window.scrollY;
+                    const scrollX = window.scrollX;
+
+                    // 1. 設定聚光燈
+                    spotlightStyle.value = {
+                        top: `${rect.top + scrollY - 6}px`,
+                        left: `${rect.left + scrollX - 6}px`,
+                        width: `${rect.width + 12}px`,
+                        height: `${rect.height + 12}px`,
+                        position: 'absolute',
+                        zIndex: '45',
+                        boxShadow: '0 0 0 9999px rgba(11, 15, 25, 0.85)',
+                        borderRadius: '16px',
+                        border: '3px solid #f59e0b',
+                        pointerEvents: 'none',
+                        transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
+                    };
+
+                    // 2. 計算對話框位置 (增加邊緣碰撞偵測防止寬度溢出)
+                    const dialogWidth = Math.min(320, window.innerWidth - 32);
+                    let top = rect.bottom + scrollY + 16;
+                    let left = rect.left + scrollX + (rect.width / 2) - (dialogWidth / 2);
+
+                    if (left < 16) left = 16;
+                    if (left + dialogWidth > window.innerWidth - 16) {
+                        left = window.innerWidth - dialogWidth - 16;
+                    }
+
+                    if (step.placement === 'top') {
+                        top = rect.top + scrollY - 180;
+                        if (top < scrollY + 16) {
+                            top = rect.bottom + scrollY + 16; // 頂部空間不足時，自動放到底部
+                        }
+                    }
+
+                    tourDialogStyle.value = {
+                        position: 'absolute',
+                        top: `${top}px`,
+                        left: `${left}px`,
+                        width: `${dialogWidth}px`,
+                        zIndex: '50',
+                        transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
+                    };
+                };
+
+                const startTour = () => {
+                    currentTourStep.value = 0;
+                    tourActive.value = true;
+                    nextTick(() => {
+                        scrollAndHighlight();
+                    });
+                };
+
+                const scrollAndHighlight = () => {
+                    const step = tourSteps[currentTourStep.value];
+                    const el = document.querySelector(step.element);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    setTimeout(() => {
+                        updateTourPosition();
+                    }, 350); // 等待滾動結束
+                };
+
+                const nextTourStep = () => {
+                    if (currentTourStep.value < tourSteps.length - 1) {
+                        currentTourStep.value++;
+                        scrollAndHighlight();
+                    } else {
+                        endTour();
+                    }
+                };
+
+                const prevTourStep = () => {
+                    if (currentTourStep.value > 0) {
+                        currentTourStep.value--;
+                        scrollAndHighlight();
+                    }
+                };
+
+                const endTour = () => {
+                    tourActive.value = false;
+                    localStorage.setItem('flexchess_tour_v2.2', 'played');
+                    updateTourPosition();
+                };
+
+                const currentTourStepData = computed(() => tourSteps[currentTourStep.value]);
+
+                // 監聽視窗重設，動態更新引導位置
+                window.addEventListener('resize', () => {
+                    if (tourActive.value) updateTourPosition();
+                });
+
+                // 西洋棋圖標對照表 (FontAwesome v6)
+                const getPieceIcon = (type) => {
+                    const icons = {
+                        rook: 'fa-solid fa-chess-rook',
+                        knight: 'fa-solid fa-chess-knight',
+                        bishop: 'fa-solid fa-chess-bishop',
+                        king: 'fa-solid fa-chess-king',
+                        queen: 'fa-solid fa-chess-queen',
+                        pawn: 'fa-solid fa-chess-pawn'
+                    };
+                    return icons[type] || 'fa-solid fa-chess-pawn';
+                };
+
+                const currentLevel = computed(() => levels[currentLevelIndex.value]);
+
+                // 載入本地儲存進度
+                onMounted(() => {
+                    const stored = localStorage.getItem('flexchess_progress_v2');
+                    if (stored) {
+                        try {
+                            completedLevels.value = JSON.parse(stored);
+                        } catch (e) {
+                            completedLevels.value = [];
+                        }
+                    }
+                });
+
+                // 觀察關卡切換以重置
+                watch(currentLevelIndex, () => {
+                    resetLevel();
+                });
+
+                // 動態取得難度標籤的顏色樣式
+                const difficultyBadgeClass = computed(() => {
+                    const diff = currentLevel.value.difficultyKey;
+                    if (diff === 'diff_easy') {
+                        return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                    } else if (diff === 'diff_medium') {
+                        return 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20';
+                    } else {
+                        return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+                    }
+                });
+
+                // 解析與編譯玩家輸入的 CSS 規則
+                const parsedStyles = ref({});
+
+                const playgroundStyle = computed(() => {
+                    const defaults = currentLevel.value.defaultStyles;
+                    return {
+                        position: 'absolute',
+                        width: defaults.width,
+                        height: defaults.height,
+                        top: defaults.top,
+                        left: defaults.left,
+                        flexDirection: parsedStyles.value.flexDirection || defaults.flexDirection || 'row',
+                        justifyContent: parsedStyles.value.justifyContent || 'flex-start',
+                        alignItems: parsedStyles.value.alignItems || 'stretch',
+                        flexWrap: parsedStyles.value.flexWrap || 'nowrap',
+                    };
+                });
+
+                // 基於 Regex 的強力 CSS 安全解析器
+                const applyCss = () => {
+                    playSound('move');
+                    const styles = {};
+                    const cleanInput = userCssInput.value.toLowerCase();
+                    const regex = /([\w-]+)\s*:\s*([^;]+)/g;
+                    let match;
+                    
+                    while ((match = regex.exec(cleanInput)) !== null) {
+                        const prop = match[1].trim();
+                        const val = match[2].trim();
+                        
+                        // 只允許作用於排版之重要屬性
+                        if (['flex-direction', 'justify-content', 'align-items', 'flex-wrap'].includes(prop)) {
+                            const camelProp = prop.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+                            styles[camelProp] = val;
+                        }
+                    }
+                    parsedStyles.value = styles;
+                };
+
+                // Web Audio API 合成音效
+                const playSound = (type) => {
+                    if (isMuted.value) return;
+                    try {
+                        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                        const now = ctx.currentTime;
+                        
+                        if (type === 'move') {
+                            const osc = ctx.createOscillator();
+                            const gain = ctx.createGain();
+                            osc.type = 'triangle';
+                            osc.frequency.setValueAtTime(160, now);
+                            osc.frequency.exponentialRampToValueAtTime(320, now + 0.1);
+                            gain.gain.setValueAtTime(0.08, now);
+                            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                            osc.connect(gain);
+                            gain.connect(ctx.destination);
+                            osc.start();
+                            osc.stop(now + 0.1);
+                        } else if (type === 'win') {
+                            const freqs = [261.63, 329.63, 392.00, 523.25]; // C 和弦
+                            freqs.forEach((f, i) => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.type = 'sine';
+                                osc.frequency.setValueAtTime(f, now + i * 0.08);
+                                gain.gain.setValueAtTime(0.1, now + i * 0.08);
+                                gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.5);
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.start(now + i * 0.08);
+                                osc.stop(now + i * 0.08 + 0.5);
+                            });
+                        } else if (type === 'error') {
+                            const playAlertTone = (freq, startTime, duration) => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.type = 'sawtooth';
+                                osc.frequency.setValueAtTime(freq, startTime);
+                                osc.frequency.linearRampToValueAtTime(freq - 15, startTime + duration);
+                                gain.gain.setValueAtTime(0.07, startTime);
+                                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.start(startTime);
+                                osc.stop(startTime + duration);
+                            };
+                            playAlertTone(135, now, 0.12);       
+                            playAlertTone(110, now + 0.14, 0.18); 
+                        } else if (type === 'grandmaster') {
+                            const grandFreqs = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+                            grandFreqs.forEach((f, i) => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.type = 'sine';
+                                osc.frequency.setValueAtTime(f, now + i * 0.12);
+                                gain.gain.setValueAtTime(0.12, now + i * 0.12);
+                                gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.8);
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.start(now + i * 0.12);
+                                osc.stop(now + i * 0.12 + 0.8);
+                            });
+                        }
+                    } catch (e) {
+                        console.log('Audio Context failed to play');
+                    }
+                };
+
+                // 物理中心點碰撞偵測驗證
+                const verifyAnswer = () => {
+                    setTimeout(() => {
+                        let success = false;
+                        const lvl = currentLevel.value;
+
+                        const activePieces = [];
+                        for (let i = 0; i < lvl.pieces.length; i++) {
+                            const el = document.getElementById(`active-piece-${i}`);
+                            if (el) {
+                                activePieces.push(el.getBoundingClientRect());
+                            }
+                        }
+
+                        if (activePieces.length === lvl.pieces.length) {
+                            const boardEl = document.querySelector('.board-grid');
+                            const boardRect = boardEl.getBoundingClientRect();
+                            const squareWidth = boardRect.width / 8;
+                            const squareHeight = boardRect.height / 8;
+
+                            let matchCount = 0;
+
+                            lvl.targets.forEach(target => {
+                                const targetCenterX = boardRect.left + (target.x - 0.5) * squareWidth;
+                                const targetCenterY = boardRect.top + (8 - target.y + 0.5) * squareHeight;
+
+                                const hasMatch = activePieces.some(rect => {
+                                    return (
+                                        targetCenterX >= rect.left - 6 &&
+                                        targetCenterX <= rect.right + 6 &&
+                                        targetCenterY >= rect.top - 6 &&
+                                        targetCenterY <= rect.bottom + 6
+                                    );
+                                });
+
+                                if (hasMatch) {
+                                    matchCount++;
+                                }
+                            });
+
+                            if (matchCount === lvl.targets.length) {
+                                success = true;
+                            }
+                        }
+
+                        if (success) {
+                            // 儲存通關進度
+                            if (!completedLevels.value.includes(currentLevelIndex.value)) {
+                                completedLevels.value.push(currentLevelIndex.value);
+                                localStorage.setItem('flexchess_progress_v2', JSON.stringify(completedLevels.value));
+                            }
+                            
+                            // 檢查是否所有關卡(共 8 關)都通關了
+                            if (completedLevels.value.length === levels.length) {
+                                playSound('grandmaster');
+                                triggerConfetti(180); // 更多紙屑
+                                setTimeout(() => {
+                                    showAllCompletedModal.value = true;
+                                }, 300);
+                            } else {
+                                playSound('win');
+                                triggerConfetti(100);
+                                showSuccessModal.value = true;
+                            }
+                        } else {
+                            playSound('error');
+                            const editor = document.querySelector('.bg-slate-950');
+                            editor.classList.add('animate-bounce');
+                            setTimeout(() => editor.classList.remove('animate-bounce'), 800);
+                        }
+                    }, 100);
+                };
+
+                // 原生 Canvas 紙屑動畫特效
+                const triggerConfetti = (count = 120) => {
+                    const canvas = document.getElementById('confetti-canvas');
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    
+                    const particles = [];
+                    const colors = ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#22d3ee'];
+                    
+                    for (let i = 0; i < count; i++) {
+                        particles.push({
+                            x: Math.random() * canvas.width,
+                            y: Math.random() * canvas.height - canvas.height,
+                            r: Math.random() * 5 + 4,
+                            d: Math.random() * canvas.height,
+                            color: colors[Math.floor(Math.random() * colors.length)],
+                            tilt: Math.random() * 10 - 5,
+                            tiltAngleIncremental: Math.random() * 0.07 + 0.02,
+                            tiltAngle: 0
+                        });
+                    }
+                    
+                    let animationFrame;
+                    const draw = () => {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        particles.forEach((p, index) => {
+                            p.tiltAngle += p.tiltAngleIncremental;
+                            p.y += (Math.cos(p.d) + 3 + p.r / 2) / 2;
+                            p.x += Math.sin(p.tiltAngle);
+                            p.tilt = Math.sin(p.tiltAngle - index / 3) * 12;
+
+                            ctx.beginPath();
+                            ctx.lineWidth = p.r;
+                            ctx.strokeStyle = p.color;
+                            ctx.moveTo(p.x + p.tilt + p.r / 2, p.y);
+                            ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 2);
+                            ctx.stroke();
+                        });
+
+                        const active = particles.some(p => p.y < canvas.height);
+                        if (active) {
+                            animationFrame = requestAnimationFrame(draw);
+                        } else {
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        }
+                    };
+                    draw();
+                };
+
+                // 常用語法晶片 (已根據 8 關結構優化晶片項目)
+                const getSuggestedChips = () => {
+                    const lvl = currentLevelIndex.value;
+                    if (lvl === 0) {
+                        return [
+                            'justify-content: space-between;', 
+                            'justify-content: flex-end;', 
+                            'justify-content: center;', 
+                            'justify-content: flex-start;'
+                        ];
+                    }
+                    if (lvl === 1) {
+                        return [
+                            'justify-content: space-evenly;', 
+                            'justify-content: space-around;', 
+                            'justify-content: space-between;', 
+                            'justify-content: center;'
+                        ];
+                    }
+                    if (lvl === 2) {
+                        return [
+                            'flex-direction: column;', 
+                            'flex-direction: column-reverse;', 
+                            'flex-direction: row;', 
+                            'justify-content: flex-end;'
+                        ];
+                    }
+                    if (lvl === 3) {
+                        return [
+                            'justify-content: center;', 
+                            'justify-content: flex-end;', 
+                            'align-items: center;', 
+                            'flex-direction: row-reverse;'
+                        ];
+                    }
+                    if (lvl === 4) {
+                        return [
+                            'flex-wrap: wrap;', 
+                            'flex-wrap: nowrap;', 
+                            'justify-content: space-between;', 
+                            'align-items: flex-end;'
+                        ];
+                    }
+                    if (lvl === 5) { 
+                        return [
+                            'flex-direction: column;', 
+                            'justify-content: center;', 
+                            'align-items: center;', 
+                            'justify-content: flex-end;'
+                        ];
+                    }
+                    if (lvl === 6) { 
+                        return [
+                            'flex-direction: row-reverse;', 
+                            'justify-content: flex-end;', 
+                            'justify-content: flex-start;', 
+                            'flex-direction: row;'
+                        ];
+                    }
+                    if (lvl === 7) { 
+                        return [
+                            'flex-wrap: wrap-reverse;', 
+                            'flex-wrap: wrap;', 
+                            'justify-content: flex-start;', 
+                            'align-items: flex-end;'
+                        ];
+                    }
+                    return ['justify-content: center;', 'flex-direction: column;'];
+                };
+
+                const insertChip = (chip) => {
+                    if (userCssInput.value.trim() && !userCssInput.value.endsWith('\n') && !userCssInput.value.endsWith(';')) {
+                        userCssInput.value += ';\n' + chip;
+                    } else {
+                        userCssInput.value += (userCssInput.value ? '\n' : '') + chip;
+                    }
+                    applyCss();
+                };
+
+                // 通關紀錄判斷
+                const isLevelCompleted = (index) => {
+                    return completedLevels.value.includes(index);
+                };
+
+                // 重新挑戰、清除所有通關進度
+                const resetProgress = () => {
+                    completedLevels.value = [];
+                    localStorage.removeItem('flexchess_progress_v2');
+                    showAllCompletedModal.value = false;
+                    currentLevelIndex.value = 0;
+                    resetLevel();
+                };
+
+                // 控制操作
+                const resetLevel = () => {
+                    userCssInput.value = '';
+                    parsedStyles.value = {};
+                    showHint.value = false;
+                    playSound('move');
+                };
+
+                const toggleLang = () => {
+                    currentLang.value = currentLang.value === 'zh' ? 'en' : 'zh';
+                };
+
+                const toggleMute = () => {
+                    isMuted.value = !isMuted.value;
+                };
+
+                // 3D 效果關閉與重啟 (NEW)
+                const toggle3D = () => {
+                    is3DActive.value = !is3DActive.value;
+                    is3DRendererActive = is3DActive.value;
+                    const canvasContainer = document.getElementById('three-canvas-container');
+                    
+                    if (is3DActive.value) {
+                        if (canvasContainer) canvasContainer.style.opacity = '1';
+                        // 重新啟動 Three 迴圈
+                        animateThreeJS();
+                    } else {
+                        if (canvasContainer) canvasContainer.style.opacity = '0.15'; // 降低背景透明度
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                };
+
+                const t = (key) => {
+                    return translations[currentLang.value][key] || key;
+                };
+
+                const prevLevel = () => {
+                    if (currentLevelIndex.value > 0) {
+                        currentLevelIndex.value--;
+                    }
+                };
+
+                const nextLevel = () => {
+                    if (currentLevelIndex.value < levels.length - 1) {
+                        currentLevelIndex.value++;
+                    }
+                };
+
+                const proceedToNext = () => {
+                    showSuccessModal.value = false;
+                    if (currentLevelIndex.value < levels.length - 1) {
+                        nextLevel();
+                    }
+                };
+
+                // 進入遊戲 (NEW)
+                const enterGame = () => {
+                    introActive.value = false;
+                    playSound('grandmaster');
+                    
+                    // 自動判定引導 tour 是否曾經開啟過
+                    const tourPlayed = localStorage.getItem('flexchess_tour_v2.2');
+                    if (!tourPlayed) {
+                        setTimeout(() => {
+                            startTour();
+                        }, 600);
+                    }
+                };
+
+                return {
+                    currentLang,
+                    currentLevelIndex,
+                    userCssInput,
+                    showHint,
+                    showSuccessModal,
+                    showAllCompletedModal,
+                    isMuted,
+                    levels,
+                    currentLevel,
+                    difficultyBadgeClass,
+                    playgroundStyle,
+                    getPieceIcon,
+                    applyCss,
+                    verifyAnswer,
+                    resetLevel,
+                    toggleLang,
+                    toggleMute,
+                    t,
+                    prevLevel,
+                    nextLevel,
+                    proceedToNext,
+                    getSuggestedChips,
+                    insertChip,
+                    isLevelCompleted,
+                    resetProgress,
+
+                    // 導覽引導
+                    tourActive,
+                    currentTourStep,
+                    currentTourStepData,
+                    spotlightStyle,
+                    tourDialogStyle,
+                    startTour,
+                    nextTourStep,
+                    prevTourStep,
+                    endTour,
+
+                    // 3D與開場 (NEW)
+                    introActive,
+                    is3DActive,
+                    toggle3D,
+                    enterGame
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
