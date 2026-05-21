@@ -694,6 +694,13 @@
             </div>
         </footer>
 
+        <div v-if="showErrorMessage" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-rose-500/30 rounded-2xl p-6 text-center">
+                <h3 class="text-white font-bold text-xl">部署失敗</h3>
+                <p class="text-slate-400 mt-2">{{ errorMessage }}</p>
+                <button @click="showErrorMessage = false" class="mt-4 bg-rose-600 px-6 py-2 rounded-lg text-white">確認</button>
+            </div>
+        </div>
     </div>
 
     <!-- Three.js 幾何宇宙排場景控制腳本 -->
@@ -1371,6 +1378,8 @@
                 const userCssInput = ref('');
                 const showHint = ref(false);
                 const showSuccessModal = ref(false);
+                const showErrorMessage = ref(false);
+                const errorMessage = ref('');
                 const showAllCompletedModal = ref(false); // 控制傳奇大師慶祝視窗
                 const isMuted = ref(false);
                 const completedLevels = ref([]); // 保存通關紀錄
@@ -1722,6 +1731,7 @@
                             }
                         }
 
+                        
                         if (success) {
                             // 儲存通關進度
                             if (!completedLevels.value.includes(currentLevelIndex.value)) {
@@ -1746,6 +1756,8 @@
                             const editor = document.querySelector('.bg-slate-950');
                             editor.classList.add('animate-bounce');
                             setTimeout(() => editor.classList.remove('animate-bounce'), 800);
+                            errorMessage.value = "CSS 語法有誤，請再試試看！";
+                            showErrorMessage.value = true;
                         }
                     }, 100);
                 };
@@ -1969,6 +1981,8 @@
                     userCssInput,
                     showHint,
                     showSuccessModal,
+                    showErrorMessage,
+                    errorMessage,
                     showAllCompletedModal,
                     isMuted,
                     levels,
@@ -2010,5 +2024,6 @@
             }
         }).mount('#app');
     </script>
+    
 </body>
 </html>
